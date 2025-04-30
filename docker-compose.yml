@@ -1,0 +1,12 @@
+---
+services:
+  db:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      - POSTGRES_PASSWORD=chirpy
+      - POSTGRES_DB=chirpy
+      - POSTGRES_USER=chirpy
+    shm_size: 128mb
+    ports:
+      - "5555:5432"
