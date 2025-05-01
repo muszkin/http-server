@@ -79,11 +79,11 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
 	chirpPathId := r.PathValue("chirpId")
 	chirpId, err := uuid.Parse(chirpPathId)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		respondWithError(w, http.StatusBadRequest, err.Error())
 	}
 	chirp, err := cfg.dbQueries.GetChrip(context.Background(), chirpId)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		respondWithError(w, http.StatusNotFound, err.Error())
 	}
 	chirpData := response{
 		ID:        chirp.ID,
