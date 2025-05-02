@@ -11,3 +11,8 @@ select * from users where email = $1;
 -- name: GetUserById :one
 select * from users where id = $1;
 
+-- name: UpdateUserEmailAndPassword :one
+update users
+set email = $1, hashed_password = $2
+where id = $3
+returning *;

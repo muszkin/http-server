@@ -149,3 +149,42 @@ func (cfg *apiConfig) handleRevokeRefreshToken(w http.ResponseWriter, r *http.Re
 	}
 	respondWithJSON(w, http.StatusNoContent, nil)
 }
+
+func (cfg *apiConfig) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	type updateRequest struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "missing token")
+	}
+	userId, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "invalid token")
+	}
+	var req updateRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+	}
+	hashedPassword, err := auth.HashPassword(req.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+	}
+	userFromDb, err := cfg.dbQueries.UpdateUserEmailAndPassword(r.Context(), database.UpdateUserEmailAndPasswordParams{
+		Email:          req.Email,
+		HashedPassword: hashedPassword,
+		ID:             userId,
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+	}
+	data := userResponse{
+		ID:        userFromDb.ID,
+		CreatedAt: userFromDb.CreatedAt,
+		UpdatedAt: userFromDb.UpdatedAt,
+		Email:     userFromDb.Email,
+	}
+	respondWithJSON(w, http.StatusOK, data)
+}
