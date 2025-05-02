@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 )
@@ -70,10 +71,23 @@ func (cfg *apiConfig) handlerAddChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
-	chirps, err := cfg.dbQueries.GetAllChirps(context.Background())
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+	authorId := r.URL.Query().Get("author_id")
+	s := r.URL.Query().Get("sort")
+	var chirps []database.Chirp
+	if len(authorId) != 0 {
+		userId, err := uuid.Parse(authorId)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+		}
+		chirps, err = cfg.dbQueries.GetAllChirpsForUserId(context.Background(), userId)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	} else {
+		chirps, _ = cfg.dbQueries.GetAllChirps(context.Background())
 	}
+
 	parsedChirps := make([]response, 0)
 	for _, chirp := range chirps {
 		parsedChirps = append(parsedChirps, response{
@@ -82,6 +96,15 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt: chirp.UpdatedAt,
 			Body:      chirp.Body,
 			UserId:    chirp.UserID,
+		})
+	}
+	if s == "desc" {
+		sort.Slice(parsedChirps, func(i, j int) bool {
+			return parsedChirps[i].CreatedAt.After(parsedChirps[j].CreatedAt)
+		})
+	} else {
+		sort.Slice(parsedChirps, func(i, j int) bool {
+			return parsedChirps[i].CreatedAt.Before(parsedChirps[j].CreatedAt)
 		})
 	}
 	respondWithJSON(w, http.StatusOK, parsedChirps)

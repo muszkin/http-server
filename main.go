@@ -15,6 +15,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbQueries      *database.Queries
 	jwtSecret      []byte
+	polkaApiKey    string
 }
 
 func main() {
@@ -29,7 +30,7 @@ func main() {
 	const fileRootPath = "."
 	const port = "8080"
 
-	apiConfig := apiConfig{fileserverHits: atomic.Int32{}, dbQueries: dbQueries, jwtSecret: []byte(os.Getenv("JWT_SECRET"))}
+	apiConfig := apiConfig{fileserverHits: atomic.Int32{}, dbQueries: dbQueries, jwtSecret: []byte(os.Getenv("JWT_SECRET")), polkaApiKey: os.Getenv("POLKA_KEY")}
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc("GET /admin/metrics", apiConfig.ServeHTTP)
 	serveMux.HandleFunc("POST /admin/reset", apiConfig.reset)
@@ -43,6 +44,7 @@ func main() {
 	serveMux.HandleFunc("POST /api/login", apiConfig.handleLogin)
 	serveMux.HandleFunc("POST /api/refresh", apiConfig.handleRefreshToken)
 	serveMux.HandleFunc("POST /api/revoke", apiConfig.handleRevokeRefreshToken)
+	serveMux.HandleFunc("POST /api/polka/webhooks", apiConfig.handleWebhookIsChirpyRed)
 	serveMux.Handle("/app/", apiConfig.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(fileRootPath)))))
 	server := http.Server{
 		Handler: serveMux,

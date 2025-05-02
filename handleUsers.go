@@ -11,10 +11,11 @@ import (
 )
 
 type userResponse struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+	ID          uuid.UUID `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Email       string    `json:"email"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 type loginResponse struct {
 	ID           uuid.UUID `json:"id"`
@@ -23,6 +24,7 @@ type loginResponse struct {
 	Email        string    `json:"email"`
 	Token        string    `json:"token"`
 	RefreshToken string    `json:"refresh_token"`
+	IsChirpyRed  bool      `json:"is_chirpy_red"`
 }
 
 func (cfg *apiConfig) handleCreateUserRequest(w http.ResponseWriter, r *http.Request) {
@@ -58,10 +60,11 @@ func (cfg *apiConfig) handleCreateUserRequest(w http.ResponseWriter, r *http.Req
 	}
 
 	respondWithJSON(w, http.StatusCreated, userResponse{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:          user.ID,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed,
 	})
 }
 
@@ -107,6 +110,7 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Email:        userFromDb.Email,
 		Token:        token,
 		RefreshToken: refreshToken.Token,
+		IsChirpyRed:  userFromDb.IsChirpyRed,
 	}
 	respondWithJSON(w, http.StatusOK, userData)
 }
@@ -181,10 +185,48 @@ func (cfg *apiConfig) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, err.Error())
 	}
 	data := userResponse{
-		ID:        userFromDb.ID,
-		CreatedAt: userFromDb.CreatedAt,
-		UpdatedAt: userFromDb.UpdatedAt,
-		Email:     userFromDb.Email,
+		ID:          userFromDb.ID,
+		CreatedAt:   userFromDb.CreatedAt,
+		UpdatedAt:   userFromDb.UpdatedAt,
+		Email:       userFromDb.Email,
+		IsChirpyRed: userFromDb.IsChirpyRed,
 	}
 	respondWithJSON(w, http.StatusOK, data)
+}
+
+func (cfg *apiConfig) handleWebhookIsChirpyRed(w http.ResponseWriter, r *http.Request) {
+	type Data struct {
+		UserId uuid.UUID `json:"user_id"`
+	}
+	type isChirpyRequest struct {
+		Event string `json:"event"`
+		Data  Data   `json:"data"`
+	}
+	apiKey, err := auth.GetApiKey(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "missing api key")
+		return
+	}
+	if apiKey != cfg.polkaApiKey {
+		respondWithError(w, http.StatusUnauthorized, "invalid api key")
+		return
+	}
+	var req isChirpyRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&req); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+		return
+	}
+	if req.Event != "user.upgraded" {
+		respondWithJSON(w, http.StatusNoContent, nil)
+		return
+	}
+	_, err = cfg.dbQueries.UpdateUserIsChirpyRed(r.Context(), database.UpdateUserIsChirpyRedParams{
+		IsChirpyRed: true, ID: req.Data.UserId,
+	})
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	respondWithJSON(w, http.StatusNoContent, nil)
 }
