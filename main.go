@@ -14,6 +14,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbQueries      *database.Queries
+	jwtSecret      []byte
 }
 
 func main() {
@@ -28,7 +29,7 @@ func main() {
 	const fileRootPath = "."
 	const port = "8080"
 
-	apiConfig := apiConfig{fileserverHits: atomic.Int32{}, dbQueries: dbQueries}
+	apiConfig := apiConfig{fileserverHits: atomic.Int32{}, dbQueries: dbQueries, jwtSecret: []byte(os.Getenv("JWT_SECRET"))}
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc("GET /admin/metrics", apiConfig.ServeHTTP)
 	serveMux.HandleFunc("POST /admin/reset", apiConfig.reset)
@@ -38,6 +39,8 @@ func main() {
 	serveMux.HandleFunc("GET /api/chirps/{chirpId}", apiConfig.handlerGetChirp)
 	serveMux.HandleFunc("POST /api/users", apiConfig.handleCreateUserRequest)
 	serveMux.HandleFunc("POST /api/login", apiConfig.handleLogin)
+	serveMux.HandleFunc("POST /api/refresh", apiConfig.handleRefreshToken)
+	serveMux.HandleFunc("POST /api/revoke", apiConfig.handleRevokeRefreshToken)
 	serveMux.Handle("/app/", apiConfig.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(fileRootPath)))))
 	server := http.Server{
 		Handler: serveMux,

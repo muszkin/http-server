@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/google/uuid"
+	"github.com/muszkin/http-server/internal/auth"
 	"github.com/muszkin/http-server/internal/database"
 	"log"
 	"net/http"
@@ -26,15 +27,24 @@ func (cfg *apiConfig) handlerAddChirp(w http.ResponseWriter, r *http.Request) {
 		UserId uuid.UUID `json:"user_id"`
 	}
 
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, err.Error())
+	}
+	userId, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, err.Error())
+	}
 	forbiddenWords := []string{"kerfuffle", "sharbert", "fornax"}
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		log.Printf("Error decoding body: %s", err)
 		respondWithError(w, http.StatusInternalServerError, "Something goes wrong")
 		return
 	}
+	params.UserId = userId
 	if len(params.Body) > 140 {
 		respondWithError(w, http.StatusBadRequest, "Too many characters in body")
 		return

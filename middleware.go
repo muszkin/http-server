@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/muszkin/http-server/internal/auth"
 	"net/http"
 )
 
@@ -24,4 +25,18 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.WriteHeader(code)
 	_, _ = w.Write(response)
 	return
+}
+
+func (cfg *apiConfig) handleAuth(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token, err := auth.GetBearerToken(r.Header)
+		if err != nil {
+			respondWithError(w, http.StatusUnauthorized, err.Error())
+		}
+		_, err = auth.ValidateJWT(token, cfg.jwtSecret)
+		if err != nil {
+			respondWithError(w, http.StatusUnauthorized, err.Error())
+		}
+		next(w, r)
+	})
 }
